@@ -19,6 +19,7 @@ export interface Job {
   dir: string;
   abort: AbortController;
   createdAt: number;
+  lastProgressAt: number;
   activeStreams: number;
   markedExpired: boolean;
 }

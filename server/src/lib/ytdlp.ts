@@ -111,12 +111,23 @@ function normalize(raw: Record<string, unknown>): MediaMetadata {
   };
 }
 
+const PROBE_CACHE_TTL_MS = 90_000;
+const probeCache = new Map<string, { metadata: MediaMetadata; expires: number }>();
+
 export async function probe(url: string, config: AppConfig): Promise<ProbeResult> {
+  const cached = probeCache.get(url);
+  if (cached && cached.expires > Date.now()) {
+    return { ok: true, metadata: cached.metadata };
+  }
+
   let result;
   try {
     result = await runManaged(
       config.ytdlpPath,
-      [...baseArgs(config), '-J', '--', url],
+      // player_skip=js avoids the slow n-signature JS challenge during metadata-only
+      // probing; we never use the probe's format URLs (the download re-extracts), and
+      // the available-format list is unaffected. Keeps the preview fast and avoids hangs.
+      [...baseArgs(config), '--extractor-args', 'youtube:player_skip=js', '-J', '--', url],
       { timeoutMs: config.probeTimeoutMs },
     );
   } catch {
@@ -150,7 +161,9 @@ export async function probe(url: string, config: AppConfig): Promise<ProbeResult
     };
   }
 
-  return { ok: true, metadata: normalize(raw) };
+  const metadata = normalize(raw);
+  probeCache.set(url, { metadata, expires: Date.now() + PROBE_CACHE_TTL_MS });
+  return { ok: true, metadata };
 }
 
 export function buildDownloadArgs(params: {
@@ -170,6 +183,16 @@ export function buildDownloadArgs(params: {
     '--no-mtime',
     '--restrict-filenames',
     '--no-color',
+    // Fail fast on a stalled connection instead of hanging until the job time limit,
+    // and parallelize fragmented (HLS/DASH) downloads for speed.
+    '--socket-timeout',
+    '30',
+    '--retries',
+    '5',
+    '--fragment-retries',
+    '5',
+    '--concurrent-fragments',
+    '4',
     '--progress-template',
     downloadTemplate,
     '--progress-template',

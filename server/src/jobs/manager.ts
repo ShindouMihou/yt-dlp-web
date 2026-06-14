@@ -23,6 +23,10 @@ import {
 
 const SWEEP_INTERVAL_MS = 30_000;
 const DISK_WATCH_INTERVAL_MS = 3_000;
+// If a running job produces no progress output and no file growth for this long, treat it
+// as stalled (e.g., YouTube throttling the extraction/download) and fail fast, rather than
+// hanging until the much longer job time limit.
+const STALL_TIMEOUT_MS = 120_000;
 // During a merge, ffmpeg writes the muxed output alongside the still-present source
 // streams, so per-job peak disk use is roughly 2x the final size. The watcher only
 // guards against disk runaway; the authoritative per-file limit is the post-download
@@ -107,6 +111,7 @@ export class JobManager {
       dir: join(this.config.tempDir, id),
       abort: new AbortController(),
       createdAt: Date.now(),
+      lastProgressAt: Date.now(),
       activeStreams: 0,
       markedExpired: false,
     };
@@ -185,6 +190,7 @@ export class JobManager {
       return;
     }
     job.state = 'running';
+    job.lastProgressAt = Date.now();
     job.progress = { ...initialProgress(), indeterminate: true, queuePosition: null };
     this.notify(job);
 
@@ -206,10 +212,21 @@ export class JobManager {
     });
 
     const diskCeiling = this.config.maxFileSizeBytes * DISK_PEAK_MULTIPLIER;
+    let lastDiskSize = 0;
     const diskWatch = setInterval(() => {
       void directorySize(job.dir).then((size) => {
-        if (size > diskCeiling && !job.abort.signal.aborted) {
+        if (job.abort.signal.aborted) return;
+        if (size > diskCeiling) {
           job.error = apiError('too_large');
+          job.abort.abort();
+          return;
+        }
+        if (size > lastDiskSize) {
+          lastDiskSize = size;
+          job.lastProgressAt = Date.now();
+        }
+        if (Date.now() - job.lastProgressAt > STALL_TIMEOUT_MS) {
+          job.error = apiError('timeout');
           job.abort.abort();
         }
       });
@@ -263,6 +280,7 @@ export class JobManager {
   private onLine(job: Job, line: string): void {
     const parsed = parseProgressLine(line);
     if (!parsed) return;
+    job.lastProgressAt = Date.now();
 
     if (parsed.type === 'download') {
       const total = parsed.totalBytes;

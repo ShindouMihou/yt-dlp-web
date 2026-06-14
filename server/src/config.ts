@@ -35,7 +35,7 @@ const schema = z.object({
   MAX_FILE_SIZE_MB: intFromEnv(2048, 16, 1024 * 100),
   TEMP_BUDGET_MB: intFromEnv(8192, 64, 1024 * 400),
   JOB_TIMEOUT_SECONDS: intFromEnv(1800, 30, 7 * 3600),
-  PROBE_TIMEOUT_SECONDS: intFromEnv(45, 5, 600),
+  PROBE_TIMEOUT_SECONDS: intFromEnv(60, 5, 600),
   TEMP_DIR: z.string().optional(),
   YTDLP_PATH: z.string().optional(),
   COOKIES_FILE: z.string().optional(),

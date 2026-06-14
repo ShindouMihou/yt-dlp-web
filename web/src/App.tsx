@@ -170,6 +170,15 @@ export function App() {
                   <ProgressView job={job.job} onCancel={reset} />
                 )}
 
+                {phase === 'working' && !job.job && (
+                  <div className="flex flex-col gap-4" aria-live="polite">
+                    <span className="text-sm font-medium text-text">Starting…</span>
+                    <div className="relative h-2.5 overflow-hidden rounded-full bg-surface-2">
+                      <div className="indeterminate-bar absolute inset-0" role="progressbar" />
+                    </div>
+                  </div>
+                )}
+
                 {phase === 'done' && job.job && <ResultCard job={job.job} onRestart={reset} />}
 
                 {phase === 'error' && activeError && (
