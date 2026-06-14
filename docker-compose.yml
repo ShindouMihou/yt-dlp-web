@@ -1,0 +1,45 @@
+services:
+  ytdl4me:
+    build:
+      context: .
+      # Pin yt-dlp for reproducible builds, e.g. YTDLP_VERSION: "2026.05.31"
+      args:
+        YTDLP_VERSION: latest
+    image: ytdl4me:latest
+    container_name: ytdl4me
+    ports:
+      - '8382:8382'
+    environment:
+      # Leave YTDL_PASSWORD unset for an open instance on a trusted LAN.
+      # Set it (and a long value) to safely expose the instance publicly.
+      # YTDL_PASSWORD: 'change-me-to-something-long'
+      # YTDL_SESSION_SECRET: 'a-stable-random-secret'
+      CONCURRENCY: '1'
+      MAX_FILE_SIZE_MB: '2048'
+      TEMP_BUDGET_MB: '8192'
+      # TRUST_PROXY: 'true'   # enable only behind a reverse proxy you control
+    # Optional: mount a YouTube cookies.txt to get past the bot wall.
+    # This file is a LIVE credential — use a throwaway account, mount read-only.
+    # volumes:
+    #   - ./cookies.txt:/data/cookies.txt:ro
+    # environment also needs: COOKIES_FILE: /data/cookies.txt
+    tmpfs:
+      - /data/temp:size=10g
+    restart: unless-stopped
+    # Resource limits protect the host from a runaway transcode or disk burst.
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2g
+    networks:
+      - ytdl4me
+    healthcheck:
+      test: ['CMD', 'curl', '-fsS', 'http://localhost:8382/api/health']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+networks:
+  ytdl4me:
+    driver: bridge

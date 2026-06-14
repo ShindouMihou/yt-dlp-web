@@ -1,0 +1,15 @@
+node_modules/
+dist/
+build/
+*.log
+.env
+.env.local
+temp/
+data/
+cookies.txt
+.localbin/
+.e2e/
+public/
+.DS_Store
+*.tsbuildinfo
+coverage/
